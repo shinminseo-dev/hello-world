@@ -2,19 +2,25 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>코브라 게임 (Snake Game)</title>
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    touch-action: none;
+    overscroll-behavior: none;
+  }
   body {
     margin: 0;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     background: radial-gradient(circle at top, #1e2a1e, #0a0f0a);
     font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
     color: #eafbea;
+    padding: 10px 10px 24px;
   }
   h1 {
     margin: 10px 0 4px;
@@ -31,12 +37,19 @@
   #info span { color: #7CFC00; font-weight: bold; }
   #board-wrap {
     position: relative;
+    width: min(400px, 92vw);
+    max-width: 400px;
   }
   canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     background: #10170f;
     border: 4px solid #2f5d2f;
     border-radius: 8px;
     box-shadow: 0 0 25px rgba(124,252,0,0.25);
+    touch-action: none;
   }
   #overlay {
     position: absolute;
@@ -76,18 +89,28 @@
   }
   #mobileControls {
     display: grid;
-    grid-template-columns: repeat(3, 56px);
-    grid-template-rows: repeat(3, 56px);
-    gap: 6px;
+    grid-template-columns: repeat(3, 64px);
+    grid-template-rows: repeat(3, 64px);
+    gap: 8px;
     margin-top: 16px;
+    touch-action: none;
+    user-select: none;
   }
   #mobileControls button {
     margin: 0;
-    font-size: 20px;
+    font-size: 22px;
     background: #2f5d2f;
     color: #eafbea;
+    touch-action: none;
+  }
+  #mobileControls button:active {
+    background: #4caf30;
+    transform: scale(0.94);
   }
   .empty { visibility: hidden; }
+  @media (min-width: 700px) {
+    #controls { display: block; }
+  }
 </style>
 </head>
 <body>
@@ -96,45 +119,46 @@
     <div>점수: <span id="score">0</span></div>
     <div>최고 점수: <span id="highScore">0</span></div>
   </div>
- 
+
   <div id="board-wrap">
     <canvas id="game" width="400" height="400"></canvas>
     <div id="overlay">
       <h2 id="overlayTitle">코브라 게임</h2>
-      <p id="overlayMsg">방향키 또는 아래 버튼으로 조작하세요.</p>
+      <p id="overlayMsg">방향키, 화면 스와이프, 또는 아래 버튼으로 조작하세요.</p>
       <button id="startBtn">게임 시작</button>
     </div>
   </div>
- 
+
   <div id="controls">
-    ⬆️⬇️⬅️➡️ 방향키 혹은 W/A/S/D로 이동하세요. 스페이스바로 일시정지.
+    PC: ⬆️⬇️⬅️➡️ 방향키 혹은 W/A/S/D로 이동, 스페이스바로 일시정지.<br>
+    모바일: 화면을 스와이프하거나 아래 버튼을 터치하세요.
   </div>
- 
+
   <div id="mobileControls">
     <div class="empty"></div><button id="upBtn">▲</button><div class="empty"></div>
     <button id="leftBtn">◀</button><div class="empty"></div><button id="rightBtn">▶</button>
     <div class="empty"></div><button id="downBtn">▼</button><div class="empty"></div>
   </div>
- 
+
 <script>
 (function() {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const gridSize = 20;
   const tileCount = canvas.width / gridSize;
- 
+
   const scoreEl = document.getElementById('score');
   const highScoreEl = document.getElementById('highScore');
   const overlay = document.getElementById('overlay');
   const overlayTitle = document.getElementById('overlayTitle');
   const overlayMsg = document.getElementById('overlayMsg');
   const startBtn = document.getElementById('startBtn');
- 
+
   let snake, dir, nextDir, food, score, highScore, gameLoop, running, paused;
- 
+
   highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10);
   highScoreEl.textContent = highScore;
- 
+
   function resetGame() {
     snake = [
       { x: 8, y: 10 },
@@ -148,7 +172,7 @@
     scoreEl.textContent = score;
     placeFood();
   }
- 
+
   function placeFood() {
     let valid = false;
     while (!valid) {
@@ -159,7 +183,7 @@
       valid = !snake.some(seg => seg.x === food.x && seg.y === food.y);
     }
   }
- 
+
   function drawCell(x, y, color, radius) {
     ctx.fillStyle = color;
     const px = x * gridSize;
@@ -178,11 +202,11 @@
       ctx.fillRect(px + 1, py + 1, gridSize - 2, gridSize - 2);
     }
   }
- 
+
   function draw() {
     ctx.fillStyle = '#10170f';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
- 
+
     // grid lines (subtle)
     ctx.strokeStyle = 'rgba(124,252,0,0.05)';
     for (let i = 0; i <= tileCount; i++) {
@@ -195,22 +219,22 @@
       ctx.lineTo(canvas.width, i * gridSize);
       ctx.stroke();
     }
- 
+
     // food
     drawCell(food.x, food.y, '#ff5555', true);
- 
+
     // snake
     snake.forEach((seg, idx) => {
       const color = idx === 0 ? '#7CFC00' : '#4caf30';
       drawCell(seg.x, seg.y, color, true);
     });
   }
- 
+
   function update() {
     if (paused) return;
     dir = nextDir;
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
- 
+
     // wall collision
     if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
       return endGame();
@@ -219,9 +243,9 @@
     if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
       return endGame();
     }
- 
+
     snake.unshift(head);
- 
+
     if (head.x === food.x && head.y === food.y) {
       score++;
       scoreEl.textContent = score;
@@ -229,10 +253,10 @@
     } else {
       snake.pop();
     }
- 
+
     draw();
   }
- 
+
   function endGame() {
     running = false;
     clearInterval(gameLoop);
@@ -246,7 +270,7 @@
     startBtn.textContent = '다시 시작';
     overlay.classList.remove('hidden');
   }
- 
+
   function startGame() {
     resetGame();
     draw();
@@ -255,14 +279,14 @@
     clearInterval(gameLoop);
     gameLoop = setInterval(update, 110);
   }
- 
+
   function changeDir(x, y) {
     // 반대 방향으로는 즉시 못 바꾸게 처리
     if (dir.x === -x && dir.y === -y) return;
     if (dir.x === x && dir.y === y) return;
     nextDir = { x, y };
   }
- 
+
   function togglePause() {
     if (!running) return;
     paused = !paused;
@@ -275,7 +299,7 @@
       overlay.classList.add('hidden');
     }
   }
- 
+
   document.addEventListener('keydown', (e) => {
     switch (e.key) {
       case 'ArrowUp': case 'w': case 'W': changeDir(0, -1); e.preventDefault(); break;
@@ -292,20 +316,67 @@
         break;
     }
   });
- 
-  document.getElementById('upBtn').addEventListener('click', () => changeDir(0, -1));
-  document.getElementById('downBtn').addEventListener('click', () => changeDir(0, 1));
-  document.getElementById('leftBtn').addEventListener('click', () => changeDir(-1, 0));
-  document.getElementById('rightBtn').addEventListener('click', () => changeDir(1, 0));
- 
-  startBtn.addEventListener('click', () => {
+
+  function bindTap(el, handler) {
+    // touchstart로 즉각 반응하고, click도 지원(마우스/트랙패드 환경 대비)
+    let handledByTouch = false;
+    el.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handledByTouch = true;
+      handler();
+    }, { passive: false });
+    el.addEventListener('click', () => {
+      if (handledByTouch) { handledByTouch = false; return; }
+      handler();
+    });
+  }
+
+  bindTap(document.getElementById('upBtn'), () => changeDir(0, -1));
+  bindTap(document.getElementById('downBtn'), () => changeDir(0, 1));
+  bindTap(document.getElementById('leftBtn'), () => changeDir(-1, 0));
+  bindTap(document.getElementById('rightBtn'), () => changeDir(1, 0));
+
+  bindTap(startBtn, () => {
     if (paused) {
       togglePause();
     } else {
       startGame();
     }
   });
- 
+
+  // 스와이프로 방향 전환 (모바일)
+  let touchStartX = 0, touchStartY = 0;
+  const SWIPE_THRESHOLD = 20;
+
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault(); // 화면 스크롤 방지
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    if (!running && !paused) {
+      startGame();
+      return;
+    }
+
+    if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      changeDir(dx > 0 ? 1 : -1, 0);
+    } else {
+      changeDir(0, dy > 0 ? 1 : -1);
+    }
+  }, { passive: true });
+
   // initial draw
   resetGame();
   draw();
