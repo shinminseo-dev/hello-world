@@ -1,14 +1,315 @@
-<h1>hello!! world~</h1>
-<h3>hello!! world~</h3>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My First Git page Open</title>
+<meta charset="UTF-8">
+<title>코브라 게임 (Snake Game)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #1e2a1e, #0a0f0a);
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    color: #eafbea;
+  }
+  h1 {
+    margin: 10px 0 4px;
+    letter-spacing: 2px;
+    color: #7CFC00;
+    text-shadow: 0 0 10px rgba(124,252,0,0.6);
+  }
+  #info {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 10px;
+    font-size: 18px;
+  }
+  #info span { color: #7CFC00; font-weight: bold; }
+  #board-wrap {
+    position: relative;
+  }
+  canvas {
+    background: #10170f;
+    border: 4px solid #2f5d2f;
+    border-radius: 8px;
+    box-shadow: 0 0 25px rgba(124,252,0,0.25);
+  }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.65);
+    border-radius: 8px;
+    text-align: center;
+    padding: 10px;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h2 { margin: 0 0 8px; color: #ff6b6b; }
+  #overlay p { margin: 4px 0; }
+  button {
+    margin-top: 12px;
+    padding: 10px 22px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    background: #7CFC00;
+    color: #0a0f0a;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  button:hover { transform: scale(1.05); }
+  #controls {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #9fdb9f;
+    max-width: 420px;
+    line-height: 1.5;
+  }
+  #mobileControls {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 56px);
+    gap: 6px;
+    margin-top: 16px;
+  }
+  #mobileControls button {
+    margin: 0;
+    font-size: 20px;
+    background: #2f5d2f;
+    color: #eafbea;
+  }
+  .empty { visibility: hidden; }
+</style>
 </head>
 <body>
-    <h1>Hello My Page</h1>
-    <h2>Welcome</h2>
+  <h1>🐍 코브라 게임</h1>
+  <div id="info">
+    <div>점수: <span id="score">0</span></div>
+    <div>최고 점수: <span id="highScore">0</span></div>
+  </div>
+ 
+  <div id="board-wrap">
+    <canvas id="game" width="400" height="400"></canvas>
+    <div id="overlay">
+      <h2 id="overlayTitle">코브라 게임</h2>
+      <p id="overlayMsg">방향키 또는 아래 버튼으로 조작하세요.</p>
+      <button id="startBtn">게임 시작</button>
+    </div>
+  </div>
+ 
+  <div id="controls">
+    ⬆️⬇️⬅️➡️ 방향키 혹은 W/A/S/D로 이동하세요. 스페이스바로 일시정지.
+  </div>
+ 
+  <div id="mobileControls">
+    <div class="empty"></div><button id="upBtn">▲</button><div class="empty"></div>
+    <button id="leftBtn">◀</button><div class="empty"></div><button id="rightBtn">▶</button>
+    <div class="empty"></div><button id="downBtn">▼</button><div class="empty"></div>
+  </div>
+ 
+<script>
+(function() {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const gridSize = 20;
+  const tileCount = canvas.width / gridSize;
+ 
+  const scoreEl = document.getElementById('score');
+  const highScoreEl = document.getElementById('highScore');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayMsg = document.getElementById('overlayMsg');
+  const startBtn = document.getElementById('startBtn');
+ 
+  let snake, dir, nextDir, food, score, highScore, gameLoop, running, paused;
+ 
+  highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10);
+  highScoreEl.textContent = highScore;
+ 
+  function resetGame() {
+    snake = [
+      { x: 8, y: 10 },
+      { x: 7, y: 10 },
+      { x: 6, y: 10 }
+    ];
+    dir = { x: 1, y: 0 };
+    nextDir = { x: 1, y: 0 };
+    score = 0;
+    paused = false;
+    scoreEl.textContent = score;
+    placeFood();
+  }
+ 
+  function placeFood() {
+    let valid = false;
+    while (!valid) {
+      food = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+      valid = !snake.some(seg => seg.x === food.x && seg.y === food.y);
+    }
+  }
+ 
+  function drawCell(x, y, color, radius) {
+    ctx.fillStyle = color;
+    const px = x * gridSize;
+    const py = y * gridSize;
+    if (radius) {
+      const r = 5;
+      ctx.beginPath();
+      ctx.moveTo(px + r, py);
+      ctx.arcTo(px + gridSize, py, px + gridSize, py + gridSize, r);
+      ctx.arcTo(px + gridSize, py + gridSize, px, py + gridSize, r);
+      ctx.arcTo(px, py + gridSize, px, py, r);
+      ctx.arcTo(px, py, px + gridSize, py, r);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(px + 1, py + 1, gridSize - 2, gridSize - 2);
+    }
+  }
+ 
+  function draw() {
+    ctx.fillStyle = '#10170f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+ 
+    // grid lines (subtle)
+    ctx.strokeStyle = 'rgba(124,252,0,0.05)';
+    for (let i = 0; i <= tileCount; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * gridSize, 0);
+      ctx.lineTo(i * gridSize, canvas.height);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i * gridSize);
+      ctx.lineTo(canvas.width, i * gridSize);
+      ctx.stroke();
+    }
+ 
+    // food
+    drawCell(food.x, food.y, '#ff5555', true);
+ 
+    // snake
+    snake.forEach((seg, idx) => {
+      const color = idx === 0 ? '#7CFC00' : '#4caf30';
+      drawCell(seg.x, seg.y, color, true);
+    });
+  }
+ 
+  function update() {
+    if (paused) return;
+    dir = nextDir;
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+ 
+    // wall collision
+    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+      return endGame();
+    }
+    // self collision
+    if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+      return endGame();
+    }
+ 
+    snake.unshift(head);
+ 
+    if (head.x === food.x && head.y === food.y) {
+      score++;
+      scoreEl.textContent = score;
+      placeFood();
+    } else {
+      snake.pop();
+    }
+ 
+    draw();
+  }
+ 
+  function endGame() {
+    running = false;
+    clearInterval(gameLoop);
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem('snakeHighScore', highScore);
+      highScoreEl.textContent = highScore;
+    }
+    overlayTitle.textContent = '게임 오버!';
+    overlayMsg.textContent = `최종 점수: ${score}점`;
+    startBtn.textContent = '다시 시작';
+    overlay.classList.remove('hidden');
+  }
+ 
+  function startGame() {
+    resetGame();
+    draw();
+    overlay.classList.add('hidden');
+    running = true;
+    clearInterval(gameLoop);
+    gameLoop = setInterval(update, 110);
+  }
+ 
+  function changeDir(x, y) {
+    // 반대 방향으로는 즉시 못 바꾸게 처리
+    if (dir.x === -x && dir.y === -y) return;
+    if (dir.x === x && dir.y === y) return;
+    nextDir = { x, y };
+  }
+ 
+  function togglePause() {
+    if (!running) return;
+    paused = !paused;
+    if (paused) {
+      overlayTitle.textContent = '일시정지';
+      overlayMsg.textContent = '스페이스바를 눌러 계속하세요.';
+      startBtn.textContent = '계속하기';
+      overlay.classList.remove('hidden');
+    } else {
+      overlay.classList.add('hidden');
+    }
+  }
+ 
+  document.addEventListener('keydown', (e) => {
+    switch (e.key) {
+      case 'ArrowUp': case 'w': case 'W': changeDir(0, -1); e.preventDefault(); break;
+      case 'ArrowDown': case 's': case 'S': changeDir(0, 1); e.preventDefault(); break;
+      case 'ArrowLeft': case 'a': case 'A': changeDir(-1, 0); e.preventDefault(); break;
+      case 'ArrowRight': case 'd': case 'D': changeDir(1, 0); e.preventDefault(); break;
+      case ' ':
+        e.preventDefault();
+        if (!running) {
+          startGame();
+        } else {
+          togglePause();
+        }
+        break;
+    }
+  });
+ 
+  document.getElementById('upBtn').addEventListener('click', () => changeDir(0, -1));
+  document.getElementById('downBtn').addEventListener('click', () => changeDir(0, 1));
+  document.getElementById('leftBtn').addEventListener('click', () => changeDir(-1, 0));
+  document.getElementById('rightBtn').addEventListener('click', () => changeDir(1, 0));
+ 
+  startBtn.addEventListener('click', () => {
+    if (paused) {
+      togglePause();
+    } else {
+      startGame();
+    }
+  });
+ 
+  // initial draw
+  resetGame();
+  draw();
+})();
+</script>
 </body>
 </html>
